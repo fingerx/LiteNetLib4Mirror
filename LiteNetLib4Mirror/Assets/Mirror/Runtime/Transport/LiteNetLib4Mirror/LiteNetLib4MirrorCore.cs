@@ -5,7 +5,7 @@ namespace Mirror.LiteNetLib4Mirror
 {
 	public static class LiteNetLib4MirrorCore
 	{
-		public const string TransportVersion = "1.1.2";
+		public const string TransportVersion = "1.1.5";
 		public static SocketError LastError { get; internal set; }
 		public static SocketError LastDisconnectError { get; internal set; }
 		public static DisconnectReason LastDisconnectReason { get; internal set; }
@@ -17,7 +17,8 @@ namespace Mirror.LiteNetLib4Mirror
 			NonInitialized,
 			Idle,
 			Discovery,
-			Client,
+			ClientConnecting,
+			ClientConnected,
 			Server
 		}
 
@@ -29,7 +30,9 @@ namespace Mirror.LiteNetLib4Mirror
 					return "LiteNetLib4Mirror isn't initialized";
 				case States.Idle:
 					return "LiteNetLib4Mirror Transport idle";
-				case States.Client:
+				case States.ClientConnecting:
+					return $"LiteNetLib4Mirror Client Connecting to {LiteNetLib4MirrorTransport.Singleton.clientAddress}:{LiteNetLib4MirrorTransport.Singleton.port}";
+				case States.ClientConnected:
 					return $"LiteNetLib4Mirror Client Connected to {LiteNetLib4MirrorTransport.Singleton.clientAddress}:{LiteNetLib4MirrorTransport.Singleton.port}";
 				case States.Server:
 #if DISABLE_IPV6
@@ -44,6 +47,9 @@ namespace Mirror.LiteNetLib4Mirror
 
 		internal static void SetOptions(bool server)
 		{
+#if !DISABLE_IPV6
+			Host.IPv6Enabled = LiteNetLib4MirrorTransport.Singleton.ipv6Enabled;
+#endif
 			Host.UpdateTime = LiteNetLib4MirrorTransport.Singleton.updateTime;
 			Host.PingInterval = LiteNetLib4MirrorTransport.Singleton.pingInterval;
 			Host.DisconnectTimeout = LiteNetLib4MirrorTransport.Singleton.disconnectTimeout;
@@ -56,7 +62,7 @@ namespace Mirror.LiteNetLib4Mirror
 			Host.SimulationMinLatency = LiteNetLib4MirrorTransport.Singleton.simulationMinLatency;
 			Host.SimulationMaxLatency = LiteNetLib4MirrorTransport.Singleton.simulationMaxLatency;
 
-			Host.DiscoveryEnabled = server && LiteNetLib4MirrorDiscovery.Singleton != null;
+			Host.BroadcastReceiveEnabled = server && LiteNetLib4MirrorDiscovery.Singleton != null;
 
 			Host.ChannelsCount = (byte)LiteNetLib4MirrorTransport.Singleton.channels.Length;
 		}
@@ -65,7 +71,7 @@ namespace Mirror.LiteNetLib4Mirror
 		{
 			if (Host != null)
 			{
-				LiteNetLib4MirrorServer.Peers.Clear();
+				LiteNetLib4MirrorServer.Peers = null;
 				Host.Flush();
 				Host.Stop();
 				Host = null;
@@ -76,7 +82,9 @@ namespace Mirror.LiteNetLib4Mirror
 
 		internal static int GetMaxPacketSize(DeliveryMethod channel)
 		{
-			int mtu = Host?.FirstPeer?.Mtu ?? NetConstants.MaxPacketSize;
+			int mtu;
+			if (Host != null && Host.FirstPeer != null) mtu = Host.FirstPeer.Mtu;
+			else mtu = NetConstants.MaxPacketSize;
 			switch (channel)
 			{
 				case DeliveryMethod.ReliableOrdered:

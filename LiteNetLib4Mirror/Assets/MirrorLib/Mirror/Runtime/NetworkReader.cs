@@ -21,7 +21,7 @@ namespace Mirror
 
         public NetworkReader(ArraySegment<byte> buffer)
         {
-            reader = new BinaryReader(new MemoryStream(buffer.Array, buffer.Offset, buffer.Count, false));
+            reader = new BinaryReader(new MemoryStream(buffer.Array, buffer.Offset, buffer.Count, false), encoding);
         }
 
         // 'int' is the best type for .Position. 'short' is too small if we send >32kb which would result in negative .Position
@@ -146,6 +146,16 @@ namespace Mirror
         public Vector4 ReadVector4()
         {
             return new Vector4(ReadSingle(), ReadSingle(), ReadSingle(), ReadSingle());
+        }
+
+        public Vector2Int ReadVector2Int()
+        {
+            return new Vector2Int((int)ReadPackedUInt32(), (int)ReadPackedUInt32());
+        }
+
+        public Vector3Int ReadVector3Int()
+        {
+            return new Vector3Int((int)ReadPackedUInt32(), (int)ReadPackedUInt32(), (int)ReadPackedUInt32());
         }
 
         public Color ReadColor()

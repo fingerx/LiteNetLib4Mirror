@@ -14,7 +14,7 @@ namespace Mirror
         public bool isReady;
         public string address;
         public float lastMessageTime;
-        public NetworkIdentity playerController { get; private set; }
+        public NetworkIdentity playerController { get; internal set; }
         public HashSet<uint> clientOwnedObjects;
         public bool logNetworkMessages;
 
@@ -82,17 +82,17 @@ namespace Mirror
             isReady = false;
             ClientScene.HandleClientDisconnect(this);
 
-            // paul:  we may be connecting or connected,  either way, we need to disconnect
-            // transport should not do anything if it is not connecting/connected
-            Transport.activeTransport.ClientDisconnect();
-
-            // server? then disconnect that client
-            if (Transport.activeTransport.ServerActive())
+            // server? then disconnect that client (not for host local player though)
+            if (Transport.activeTransport.ServerActive() && connectionId != 0)
             {
                 Transport.activeTransport.ServerDisconnect(connectionId);
             }
+            // not server and not host mode? then disconnect client
+            else
+            {
+                Transport.activeTransport.ClientDisconnect();
+            }
 
-            // remove observers
             RemoveObservers();
         }
 
@@ -115,16 +115,6 @@ namespace Mirror
             m_MessageHandlers.Remove(msgType);
         }
 
-        internal void SetPlayerController(NetworkIdentity player)
-        {
-            playerController = player;
-        }
-
-        internal void RemovePlayerController()
-        {
-            playerController = null;
-        }
-
         [Obsolete("use Send<T> instead")]
         public virtual bool Send(int msgType, MessageBase msg, int channelId = Channels.DefaultReliable)
         {
@@ -133,7 +123,7 @@ namespace Mirror
             return SendBytes(message, channelId);
         }
 
-        public virtual bool Send<T>(T msg, int channelId = Channels.DefaultReliable) where T: MessageBase
+        public virtual bool Send<T>(T msg, int channelId = Channels.DefaultReliable) where T: IMessageBase
         {
             // pack message and send
             byte[] message = MessagePacker.Pack(msg);
@@ -142,7 +132,7 @@ namespace Mirror
 
         // internal because no one except Mirror should send bytes directly to
         // the client. they would be detected as a message. send messages instead.
-        internal virtual bool SendBytes( byte[] bytes, int channelId = Channels.DefaultReliable)
+        internal virtual bool SendBytes(byte[] bytes, int channelId = Channels.DefaultReliable)
         {
             if (logNetworkMessages) Debug.Log("ConnectionSend con:" + connectionId + " bytes:" + BitConverter.ToString(bytes));
 
@@ -218,7 +208,7 @@ namespace Mirror
             return false;
         }
 
-        public bool InvokeHandler<T>(T msg) where T : MessageBase
+        public bool InvokeHandler<T>(T msg) where T : IMessageBase
         {
             int msgType = MessagePacker.GetId<T>();
             byte[] data = MessagePacker.Pack(msg);
